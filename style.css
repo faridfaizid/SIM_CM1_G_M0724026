@@ -1,0 +1,439 @@
+/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+   SAKILA REPORT — Modern CSS Theme
+   Font: Jakarta Sans (Google Fonts)
+   Palette: Cornflower Blue #6495ed | Navy #0f1f3d | Accent #2563eb | Orange #f97316
+   =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+
+/*  Bootstrap / Flatly overrides ================= */
+body { background-color: #f8fafc !important; }
+.navbar { display: none !important; }
+a { color: #2563eb !important; }
+a:hover { color: #1d4ed8 !important; }
+
+/*  Root variables =========================== */
+:root {
+  --navy:        #0f1f3d;
+  --navy-light:  #1e3a6e;
+  --cornflower-blue:        #6495ed;
+  --lightsky-blue:  #87cefa;
+  --accent:      #2563eb;
+  --accent-light:#dbeafe;
+  --orange:      #f97316;
+  --orange-light:#fff7ed;
+  --success:     #059669;
+  --success-bg:  #ecfdf5;
+  --text-main:   #1e293b;
+  --text-muted:  #64748b;
+  --border:      #e2e8f0;
+  --bg-page:     #f8fafc;
+  --bg-card:     #ffffff;
+  --radius:      12px;
+  --shadow-sm:   0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md:   0 4px 16px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.06);
+  --shadow-lg:   0 10px 40px rgba(0,0,0,.12);
+}
+
+/*  Base =========================== */
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text-main);
+  background: var(--bg-page);
+  margin: 0;
+  padding: 0;
+}
+
+p {
+  text-align: justify;
+}
+
+/*  Layout wrapper =========================== */
+.main-container {
+  max-width: 1080px !important;
+}
+
+/*  Hero header =========================== */
+.title-block,
+div#header {
+  background: linear-gradient(135deg, var(--cornflower-blue) 0%, var(--lightsky-blue) 60%, #aedefc 100%);
+  color: #fff;
+  padding: 56px 48px 44px;
+  border-radius: 0 0 var(--radius) var(--radius);
+  margin-bottom: 40px;
+  position: relative;
+  overflow: hidden;
+}
+
+div#header::before {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 280px; height: 280px;
+  background: rgba(255,255,255,.04);
+  border-radius: 50%;
+}
+
+div#header::after {
+  content: '';
+  position: absolute;
+  bottom: -80px; left: 30%;
+  width: 360px; height: 360px;
+  background: rgba(37,99,235,.15);
+  border-radius: 50%;
+}
+
+h1.title {
+  font-size: 2.5rem !important;
+  font-weight: 700 !important;
+  color: #fff !important;
+  margin-bottom: 10px !important;
+  letter-spacing: -0.5px;
+  position: relative; z-index: 1;
+}
+
+h4.author, h4.date {
+  font-size: 1.375rem !important;
+  font-weight: 400 !important;
+  color: rgba(255,255,255,.75) !important;
+  margin: 4px 0 0 !important;
+  position: relative; z-index: 1;
+}
+
+/*  Section headings =========================== */
+h1, h2, h3 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: var(--navy);
+  font-weight: 700;
+}
+
+/* numbered h1 (sections) */
+.section.level1 > h1 {
+  font-size: 1.5rem;
+  border-left: 5px solid var(--accent);
+  padding: 10px 0 10px 18px;
+  margin: 48px 0 20px;
+  background: linear-gradient(90deg, var(--accent-light) 0%, transparent 100%);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.section.level2 > h2 {
+  font-size: 1.375rem;
+  color: var(--navy-light);
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 8px;
+  margin: 32px 0 16px;
+}
+
+.section.level3 > h3 {
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin: 24px 0 10px;
+}
+
+/*  Table of contents =========================== */
+#TOC {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-sm);
+  font-size: 1.25rem;
+}
+
+#TOC ul { padding-left: 16px; }
+
+#TOC a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color .2s;
+}
+
+#TOC a:hover { color: var(--accent); }
+
+#TOC li.active > a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/*  Blockquote / callout =========================== */
+blockquote {
+  background: linear-gradient(90deg, var(--accent-light), #f0f7ff);
+  border-left: 4px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  margin: 24px 0;
+  padding: 18px 24px;
+  color: var(--navy);
+  font-size: .95rem;
+  box-shadow: var(--shadow-sm);
+}
+
+blockquote p { margin: 0; }
+
+/*  Horizontal rule =========================== */
+hr {
+  border: none;
+  border-top: 2px solid var(--border);
+  margin: 40px 0;
+}
+
+/*  Inline code =========================== */
+code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .82em;
+  background: var(--accent-light);
+  color: var(--accent);
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+/*  Code blocks =========================== */
+pre {
+  background: #f5f8ff !important;
+  border: none !important;
+  border-radius: var(--radius) !important;
+  padding: 20px 22px !important;
+  box-shadow: var(--shadow-md);
+  overflow-x: auto;
+}
+
+pre code {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 1.125rem !important;
+  background: transparent !important;
+  color: #878f99 !important;
+  padding: 0 !important;
+}
+
+/* code fold button */
+.code-folding-btn {
+  background: var(--accent) !important;
+  border: none !important;
+  border-radius: 6px !important;
+  color: #fff !important;
+  font-size: 1.125rem !important;
+  padding: 3px 10px !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+/*  Tables =========================== */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  font-size: 1.125rem;
+  margin: 20px 0;
+}
+
+thead th {
+  background: var(--navy) !important;
+  color: #fff !important;
+  padding: 12px 16px !important;
+  font-weight: 600;
+  font-size: 1.125rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border: none !important;
+}
+
+tbody tr {
+  transition: background .15s;
+}
+
+tbody tr:nth-child(even) { background: #f8fafc; }
+tbody tr:hover           { background: var(--accent-light) !important; }
+
+tbody td {
+  padding: 10px 16px !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+
+/* kableExtra full_width override */
+.table-responsive { border-radius: var(--radius); overflow: hidden; }
+
+/*  Stat cards  (dirender via R inline HTML) =========================== */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+  transition: transform .2s, box-shadow .2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--orange));
+}
+
+.stat-label {
+  font-size: .78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1;
+}
+
+.stat-sub {
+  font-size: .8rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.stat-icon {
+  position: absolute;
+  top: 16px; right: 18px;
+  font-size: 1.6rem;
+  opacity: .18;
+}
+
+/*  Insight / recommendation cards =========================== */
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.insight-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.insight-card .ic-num {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: .8rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.insight-card h4 {
+  margin: 0 0 8px;
+  font-size: .95rem;
+  color: var(--navy);
+}
+
+.insight-card p {
+  margin: 0;
+  font-size: .87rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* finding table rows */
+.finding-row td:first-child { font-weight: 700; color: var(--accent); }
+
+/*  Tab panels =========================== */
+.nav-tabs {
+  border-bottom: 2px solid var(--border) !important;
+  gap: 4px;
+}
+
+.nav-tabs .nav-link {
+  border: none !important;
+  border-radius: 8px 8px 0 0 !important;
+  color: var(--text-muted) !important;
+  font-size: .88rem;
+  font-weight: 500;
+  padding: 8px 18px !important;
+  transition: all .2s;
+}
+
+.nav-tabs .nav-link:hover {
+  background: var(--accent-light) !important;
+  color: var(--accent) !important;
+}
+
+.nav-tabs .nav-link.active {
+  background: var(--accent) !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+.tab-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+/*  Figures / plots =========================== */
+img {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  max-width: 100%;
+}
+
+/*  Section wrappers =========================== */
+.section.level1 {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  margin-bottom: 28px;
+  box-shadow: var(--shadow-sm);
+}
+
+/*  Footer =========================== */
+body::after {
+  content: 'Laporan Analisis Performa Penyewaan dan Pendapatan Toko DVD Sakila · Farid Faiz';
+  display: block;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 1rem;
+  padding: 32px 0 24px;
+  border-top: 1px solid var(--border);
+  margin-top: 40px;
+}
+
+/*  Responsive =========================== */
+@media (max-width: 640px) {
+  div#header { padding: 36px 24px 28px; }
+  h1.title   { font-size: 1.4rem !important; }
+  .section.level1 { padding: 18px 16px; }
+  .stat-grid  { grid-template-columns: 1fr 1fr; }
+}
