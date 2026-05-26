@@ -1,0 +1,489 @@
+---
+title: "Analisis Performa Penyewaan dan Pendapatan Toko DVD Sakila: Identifikasi Segmen Unggulan sebagai Dasar Pengambilan Keputusan Bisnis"
+author: "Farid Faiz"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: flatly
+    highlight: tango
+    css: style.css
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    number_sections: true
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  fig.width = 9,
+  fig.height = 5)
+```
+
+------------------------------------------------------------------------
+
+# Pendahuluan
+
+Industri penyewaan DVD, meskipun kini telah banyak tergantikan oleh layanan streaming digital, menyimpan kekayaan data transaksi yang sangat relevan untuk dipelajari sebagai fondasi analitik bisnis ritel. Dataset Sakila, database contoh resmi MySQL yang dikembangkan oleh MySQL AB, merepresentasikan ekosistem toko penyewaan DVD secara menyeluruh, mencakup data pelanggan, katalog film dengan berbagai kategori genre, dua gerai toko, staf, serta ribuan catatan transaksi penyewaan dan pembayaran yang terjadi dalam kurun waktu lebih dari satu tahun.
+
+Dalam konteks bisnis penyewaan, keberhasilan tidak hanya ditentukan oleh seberapa banyak film yang tersedia di rak, tetapi lebih pada kemampuan manajemen untuk memahami di mana pendapatan sesungguhnya berasal, apakah dari genre tertentu yang selalu diminati, dari toko dengan lokasi lebih strategis, dari pelanggan setia yang berbelanja lebih sering, atau dari momentum musiman yang terjadi secara berulang. Tanpa pemahaman ini, keputusan bisnis cenderung dibuat berdasarkan intuisi semata, yang berpotensi mengalokasikan sumber daya secara tidak efisien.
+
+Laporan analisis ini bertujuan untuk menjawab satu pertanyaan utama: dari mana pendapatan terbesar berasal? Untuk menjawab pertanyaan tersebut, analisis dilakukan secara bertahap, dimulai dari eksplorasi data secara menyeluruh, kemudian diperdalam melalui empat dimensi utama: kategori film, perbandingan antar toko, tren waktu bulanan, serta segmentasi nilai pelanggan. Setiap dimensi dianalisis menggunakan kombinasi tabel statistik deskriptif dan visualisasi data interaktif yang dibangun dengan bahasa pemrograman R, sehingga temuan dapat dikomunikasikan secara efektif baik kepada audiens teknis maupun non-teknis.
+
+Hasil analisis ini diharapkan tidak hanya memberikan gambaran retrospektif tentang performa bisnis yang telah berjalan, tetapi juga menghasilkan wawasan yang dapat langsung ditindaklanjuti, mulai dari keputusan pengadaan stok, perancangan program loyalitas pelanggan, hingga perencanaan kampanye promosi yang lebih terarah dan terukur.
+
+------------------------------------------------------------------------
+
+# Persiapan
+
+## Library
+
+Dimulai dengan bagian ini, semua paket R yang dibutuhkan dimuat selama proses analisis. Paket `DBI` digunakan untuk koneksi dan query database. Paket `dplyr` dan `tidyr` menangani transformasi data, `ggplot2` dan `scales` bertanggung jawab atas visualisasi, `lubridate` untuk memudahkan manipulasi tanggal, sementara `knitr` dan `kableExtra` menghasilkan tabel yang rapi dan terformat. Pemuatan dilakukan secara otomatis dengan pengecekan ketersediaan paket, sehingga laporan dapat langsung dijalankan tanpa instalasi manual terlebih dahulu.
+
+```{r library}
+# Mengunduh package apabila belum ada
+packages <- c("DBI", "dplyr", "ggplot2", "scales", "lubridate", "knitr", "kableExtra", "tidyr", "forcats")
+
+invisible(lapply(packages, function(p) {
+  if (!requireNamespace(p, quietly = TRUE)) install.packages(p)
+  library(p, character.only = TRUE)
+}))
+```
+
+## Koneksi Database
+
+Pada bagian ini, kita membuat koneksi ke file database Sakila yang berasal dari MySQL. Deskripsi dataset Sakila meliputi: 16.000 transaksi, 16 kategori film, 2 toko, dan \~599 pelanggan dalam rentang waktu Mei 2005 hingga Oktober 2006.
+
+```{r koneksi}
+con <- DBI::dbConnect(odbc::odbc(),
+                      Driver = "MySQL ODBC 8.0 ANSI Driver",
+                      Server = "127.0.0.1",
+                      Database = "sakila",
+                      UID = "root",
+                      PWD = "mysql.farid1",
+                      Port = 3306)
+```
+
+------------------------------------------------------------------------
+
+# Eksplorasi Awal
+
+Bagian ini menyajikan gambaran keseluruhan dataset sebelum analisis mendalam dilakukan. Lima metrik utama ditampilkan dalam bentuk stat cards: total transaksi, jumlah pelanggan unik, jumlah film yang pernah disewa, total pendapatan keseluruhan, dan rata-rata pendapatan per transaksi. Angka-angka ini penting sebagai tolok ukur skala bisnis. Misalnya, rata-rata per transaksi mencerminkan harga sewa tipikal yang berlaku: jika angka ini terlalu rendah dibanding rental rate yang ditetapkan, bisa mengindikasikan banyak transaksi yang hanya membayar tarif minimum. Eksplorasi awal juga membantu mengidentifikasi apakah data sudah bersih dan lengkap sebelum dilanjutkan ke analisis berikutnya.
+
+```{r eksplorasi}
+# Ringkasan jumlah transaksi & pendapatan
+summary_tbl <- dbGetQuery(con, "
+  SELECT
+    COUNT(*) AS total_transaksi,
+    COUNT(DISTINCT customer_id) AS total_pelanggan,
+    COUNT(DISTINCT film_id) AS total_film,
+    ROUND(SUM(amount), 2) AS total_pendapatan,
+    ROUND(AVG(amount), 2) AS rata_rata_per_transaksi
+    FROM rental_payment
+    ")
+
+kable(summary_tbl,
+      col.names = c("Total Transaksi", "Pelanggan Unik", "Film Disewa", "Total Pendapatan (USD)", "Rata-rata/Transaksi (USD)"),
+      format.args = list(big.mark = ","),
+      align = "r") |>
+  kable_styling(bootstrap_options = c("Striped", "hover", "condensed"), full_width = FALSE)
+
+```
+
+------------------------------------------------------------------------
+
+# Analisis Pendapatan per Kategori Film {.tabset}
+
+## Tabel
+
+Tabel ini merangkum performa seluruh 16 kategori film secara numerik: jumlah penyewaan, total pendapatan, rata-rata pendapatan per transaksi, dan kontribusi persentase terhadap total. Kategori teratas ditandai dengan warna biru untuk memudahkan identifikasi. Kolom persentase sangat berguna untuk membandingkan kontribusi relatif antar kategori: kategori dengan penyewaan tinggi belum tentu menghasilkan pendapatan tertinggi jika rata-rata harga sewanya rendah. Sebaliknya, kategori dengan penyewaan lebih sedikit namun didominasi film berrate tinggi (\$4.99) bisa tampil lebih unggul secara pendapatan.
+
+```{r pendapatan_kategori}
+rev_cat <- dbGetQuery(con, "
+  SELECT
+  c.name AS kategori,
+  COUNT(r.rental_id) AS jumlah_penyewaan,
+  ROUND(SUM(r.amount), 2) AS total_pendapatan,
+  ROUND(AVG(r.amount), 2) AS avg_per_transaksi,
+  ROUND(SUM(r.amount) * 100.0 / (SELECT SUM(amount) FROM rental_payment), 1) AS pct_pendapatan
+  FROM rental_payment r JOIN category c ON r.category_id = c.category_id
+  GROUP BY c.name ORDER BY total_pendapatan DESC
+  ")
+
+kable(rev_cat, col.names = c("Kategori", "Penyewaan", "Pendapatan (USD)", "Rata-rata (USD)", "% Total"),
+      format.args = list(big.mark = ","),
+      align = c("l", "r", "r", "r", "r")) |>
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) |>
+  row_spec(1, bold = TRUE, color = "white", background = "cornflowerblue")
+```
+
+## Grafik Bar
+
+Grafik batang horizontal ini mengurutkan kategori dari pendapatan tertinggi ke terendah, sehingga hierarki performa langsung terbaca secara visual. Gradasi warna dari biru muda ke biru tua memperkuat perbedaan besaran antar kategori. Dari grafik ini terlihat bahwa distribusi pendapatan antar kategori cukup merata: tidak ada satu kategori yang mendominasi secara ekstrem, yang mengindikasikan bahwa portofolio film Sakila relatif seimbang. Namun, 3–5 kategori teratas tetap layak mendapat perhatian lebih dalam pengadaan stok karena selisih pendapatannya cukup konsisten di atas rata-rata.
+
+```{r grafik_kategori, fig.height=6}
+rev_cat_sorted <- rev_cat |>
+  mutate(kategori = fct_reorder(kategori, total_pendapatan))
+
+ggplot(rev_cat_sorted, aes(x = kategori, y = total_pendapatan, fill = total_pendapatan)) +
+  geom_col(width = 0.7, show.legend = FALSE) +
+  geom_text(aes(label = paste0("$",
+                               scales::comma(total_pendapatan))), hjust = -0.1, size = 3.2, color = "grey30") +
+  scale_y_continuous(labels = dollar_format(), expand = expansion(mult = c(0, 0.15))) +
+  scale_fill_gradient(low = "skyblue", high = "cornflowerblue") +
+  coord_flip() +
+  labs(
+    title = "Total Pendapatan per Kategori Film",
+    subtitle = "Berdasarkan kategori dengan pendapatan tertinggi",
+    x = NULL,
+    y = "Total Pendapatan (USD)",
+    caption = "Sumber data : Dataset Sakila"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(color = "grey50"),
+    panel.grid.major.y = element_blank()
+  )
+```
+
+## Komposisi
+
+Grafik pie ini memvisualisasikan proporsi kontribusi 8 kategori teratas terhadap total pendapatan, dengan kategori lainnya digabung menjadi satu segmen "Lainnya". Pie chart dipilih di sini untuk menegaskan bahwa tidak ada kategori tunggal yang mendominasi lebih dari \~10% total pendapatan, sehingga distribusinya cukup menyebar. Hal ini memiliki implikasi strategis: bisnis tidak terlalu bergantung pada satu genre, sehingga risiko penurunan permintaan pada satu kategori tidak akan berdampak signifikan pada keseluruhan pendapatan. Di sisi lain, tidak adanya kategori yang benar-benar dominan juga berarti peluang untuk menciptakan keunggulan kompetitif pada satu niche film masih terbuka lebar.
+
+```{r pie_kategori, fig.height=6}
+# Diambil 8 teratas, sisanya masuk ke bagian "Lainnya"
+
+top8 <- rev_cat |>
+  arrange(desc(total_pendapatan)) |>
+  mutate(label_kat = if_else(row_number() <= 8,
+                             kategori, "Lainnya")) |>
+  group_by(label_kat) |>
+  summarise(total_pendapatan = sum(total_pendapatan)) |>
+  arrange(desc(total_pendapatan))
+
+ggplot(top8, aes(x = "", y = total_pendapatan,
+                 fill = fct_reorder(label_kat, total_pendapatan))) +
+  geom_col(width = 1, color = "white", linewidth = 0.5) +
+  coord_polar(theta = "y") +
+  scale_fill_brewer(palette = "Set3") +
+  geom_text(aes(label = paste0(round(total_pendapatan / sum(total_pendapatan) * 100, 1), "%")),
+            position = position_stack(vjust = 0.5), size = 3.5) +
+  labs(
+    title = "Komposisi Pendapatan - 8 Kategori Teratas",
+    fill = "Kategori"
+  ) +
+  theme_void(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    legend.position = "right"
+  )
+```
+
+------------------------------------------------------------------------
+
+# Analisis Pendapatan per Toko
+
+Analisis ini membandingkan kinerja dua toko yang dimiliki Sakila. Tabel menampilkan jumlah transaksi, total pendapatan, dan kontribusi persentase masing-masing toko, sementara grafik batang memvisualisasikan perbandingannya secara langsung. Dari hasil analisis, Toko 1 secara konsisten menghasilkan pendapatan lebih tinggi dibanding Toko 2, dengan selisih yang mencerminkan perbedaan volume transaksi, bukan perbedaan harga sewa rata-rata yang signifikan. Hal ini mengindikasikan bahwa Toko 1 melayani lebih banyak pelanggan, kemungkinan karena faktor lokasi yang lebih strategis atau lama beroperasi yang lebih panjang. Gap ini perlu ditelusuri lebih lanjut: apakah Toko 2 memiliki potensi yang belum dioptimalkan, atau memang terdapat hambatan struktural yang perlu diatasi terlebih dahulu.
+
+```{r pendapatan_toko}
+rev_store <- dbGetQuery(con, "
+  SELECT
+  'Toko' || store_id AS toko,
+  COUNT(rental_id) AS jumlah_penyewaan,
+  ROUND(SUM(amount), 2) AS total_pendapatan,
+  ROUND(AVG(amount), 2) AS avg_per_transaksi,
+  ROUND(SUM(amount) * 100.0 / (SELECT SUM(amount) FROM rental_payment), 1) AS pct_pendapatan
+  FROM rental_payment
+  GROUP BY store_id
+  ORDER BY total_pendapatan DESC
+  ")
+
+kable(rev_store,
+      col.names = c("Toko", "Penyewaan", "Pendapatan (USD)", "Rata-rata (USD)", "% Total"),
+      format.args = list(big.mark = ","),
+      align = c("l", "r", "r", "r", "r")) |>
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+```{r grafik_toko}
+ggplot(rev_store, aes(x = toko, y = total_pendapatan, fill = factor(toko))) +
+  geom_col(width = 0.45, show.legend = FALSE) +
+  geom_text(aes(label = paste0("$", scales::comma(total_pendapatan),
+                               "\n(", pct_pendapatan, "%)")),
+            vjust = -0.4, size = 4, fontface = "bold") +
+  scale_y_continuous(labels = dollar_format(),
+                     expand = expansion(mult = c(0, 0.15))) +
+  scale_fill_manual(values = c("cornflowerblue","#e8702a")) +
+  labs(
+    title    = "Perbandingan Pendapatan antar Toko",
+    x        = NULL,
+    y        = "Total Pendapatan (USD)",
+    caption  = "Sumber data : Dataset Sakila"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title         = element_text(face = "bold", size = 14),
+    panel.grid.major.x = element_blank()
+  )
+```
+
+------------------------------------------------------------------------
+
+# Tren Pendapatan Bulanan {.tabset}
+
+## Seluruh Toko
+
+Grafik tren bulanan menampilkan pergerakan pendapatan kedua toko sepanjang periode Mei 2005 hingga Oktober 2006 dalam satu visualisasi. Penggunaan `geom_area()` dengan transparansi memudahkan perbandingan pola antar toko secara intuitif. Dari grafik ini terlihat pola yang konsisten: pendapatan meningkat tajam menjelang pertengahan tahun (sekitar Juni–Agustus), kemudian mengalami penurunan di akhir tahun. Pola ini berlaku di kedua toko, yang mengindikasikan bahwa lonjakan tersebut dipengaruhi faktor musiman eksternal, seperti liburan sekolah atau musim panas, bukan faktor internal toko semata. Toko 1 secara konsisten berada di atas Toko 2 sepanjang periode, dengan jarak yang relatif stabil.
+
+```{r tren_bulanan}
+tren <- dbGetQuery(con, "
+  SELECT
+    DATE_FORMAT(rental_date, '%Y-%m') AS bulan,
+    store_id,
+    ROUND(SUM(amount), 2)          AS pendapatan
+  FROM rental_payment
+  GROUP BY bulan, store_id
+  ORDER BY bulan
+") |>
+  mutate(
+    bulan    = ym(bulan),
+    toko     = paste0("Toko ", store_id)
+  )
+
+ggplot(tren, aes(x = bulan, y = pendapatan, color = toko, group = toko)) +
+  geom_line(linewidth = 1.1) +
+  geom_point(size = 2.5) +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "2 months") +
+  scale_y_continuous(labels = dollar_format()) +
+  scale_color_manual(values = c("cornflowerblue","#e8702a")) +
+  labs(
+    title    = "Tren Pendapatan Bulanan per Toko",
+    subtitle = "Mei 2005 – Oktober 2006",
+    x        = NULL,
+    y        = "Pendapatan (USD)",
+    color    = NULL,
+    caption  = "Sumber data : Dataset Sakila"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title    = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(color = "grey50"),
+    axis.text.x   = element_text(angle = 45, hjust = 1),
+    legend.position = "top"
+  )
+```
+
+## Heatmap Bulanan
+
+Heatmap memberikan perspektif berbeda dibanding grafik garis: sumbu X mewakili bulan, sumbu Y mewakili tahun, dan intensitas warna menunjukkan besaran pendapatan. Visualisasi ini sangat efektif untuk membaca pola musiman secara sekilas. Sel yang berwarna lebih gelap (biru tua) menunjukkan bulan dengan pendapatan tertinggi, sementara sel terang mengindikasikan bulan sepi. Dari heatmap terlihat jelas bahwa Juli dan Agustus secara konsisten menjadi bulan terkuat, sementara bulan-bulan awal dan akhir tahun cenderung lebih lemah. Informasi ini sangat berharga untuk perencanaan anggaran, jadwal promosi, dan keputusan pengadaan stok, manajemen dapat mempersiapkan inventaris lebih awal sebelum puncak musim tiba.
+
+```{r heatmap}
+heatmap_data <- dbGetQuery(con, "
+  SELECT
+    DATE_FORMAT(rental_date, '%Y')  AS tahun,
+    DATE_FORMAT(rental_date, '%m')  AS bulan_num,
+    ROUND(SUM(amount), 2)        AS pendapatan
+  FROM rental_payment
+  GROUP BY tahun, bulan_num
+") |>
+  mutate(
+    bulan_label = month.abb[as.integer(bulan_num)],
+    bulan_label = factor(bulan_label, levels = month.abb)
+  )
+
+ggplot(heatmap_data,
+       aes(x = bulan_label, y = tahun, fill = pendapatan)) +
+  geom_tile(color = "white", linewidth = 0.8) +
+  geom_text(aes(label = paste0("$", scales::comma(pendapatan, accuracy = 1))),
+            size = 3.5, color = "white", fontface = "bold") +
+  scale_fill_gradient(low = "skyblue", high = "cornflowerblue",
+                      labels = dollar_format()) +
+  labs(
+    title = "Heatmap Pendapatan Bulanan",
+    x     = "Bulan",
+    y     = "Tahun",
+    fill  = "Pendapatan"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    panel.grid = element_blank()
+  )
+```
+
+------------------------------------------------------------------------
+
+# Kategori Terlaris per Toko
+
+Bagian ini memecah analisis kategori film ke level toko menggunakan faceted bar chart: satu panel untuk Toko 1 dan satu panel untuk Toko 2. Pendekatan ini memungkinkan perbandingan preferensi pelanggan antar toko secara langsung. Temuan menarik yang perlu diperhatikan adalah apakah peringkat kategori di kedua toko serupa atau berbeda: jika berbeda secara signifikan, ini mengindikasikan bahwa demografi pelanggan kedua toko memiliki selera yang berbeda, sehingga strategi pengadaan stok idealnya dibedakan per toko, bukan menggunakan satu kebijakan seragam. Sebaliknya, jika peringkatnya serupa, maka kebijakan stok terpusat masih efektif dan efisien untuk diterapkan.
+
+```{r kategori_per_toko, fig.height=7}
+top_cat_store <- dbGetQuery(con, "
+  SELECT
+    'Toko ' || r.store_id AS toko,
+    c.name                AS kategori,
+    COUNT(r.rental_id)    AS jumlah_penyewaan,
+    ROUND(SUM(r.amount), 2) AS pendapatan
+  FROM rental_payment r
+  JOIN category c ON r.category_id = c.category_id
+  GROUP BY r.store_id, c.name
+  ORDER BY r.store_id, pendapatan DESC
+") |>
+  group_by(toko) |>
+  slice_max(order_by = pendapatan, n = 8) |>
+  ungroup() |>
+  mutate(kategori = fct_reorder(kategori, pendapatan))
+
+ggplot(top_cat_store,
+       aes(x = kategori, y = pendapatan, fill = factor(toko))) +
+  geom_col(show.legend = FALSE, width = 0.7) +
+  geom_text(aes(label = paste0("$", scales::comma(pendapatan))),
+            hjust = -0.1, size = 3) +
+  facet_wrap(~toko, scales = "free_y") +
+  coord_flip() +
+  scale_y_continuous(labels = dollar_format(),
+                     expand = expansion(mult = c(0, 0.2))) +
+  scale_fill_manual(values = c("cornflowerblue","#e8702a")) +
+  labs(
+    title    = "Top 8 Kategori Film per Toko (berdasarkan pendapatan)",
+    x        = NULL,
+    y        = "Pendapatan (USD)",
+    caption  = "Sumber data : Dataset Sakila"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title         = element_text(face = "bold", size = 13),
+    panel.grid.major.y = element_blank(),
+    strip.text         = element_text(face = "bold", size = 12)
+  )
+```
+
+------------------------------------------------------------------------
+
+# Segmentasi Pelanggan Berdasarkan Nilai Transaksi
+
+Segmentasi ini membagi pelanggan ke dalam empat kelompok berdasarkan total belanja menggunakan metode kuartil: Platinum (25% teratas), Gold (50–75%), Silver (25–50%), dan Bronze (bawah 25%). Tabel ringkasan memperlihatkan berapa banyak pelanggan di setiap segmen dan seberapa besar kontribusi pendapatan mereka. Temuan khas yang sering muncul pada analisis semacam ini adalah prinsip Pareto: sebagian kecil pelanggan (Platinum) bertanggung jawab atas sebagian besar pendapatan. Scatter plot frekuensi vs. total belanja memperkuat temuan ini secara visual: pelanggan Platinum terlihat tersebar di kuadran kanan atas (frekuensi tinggi, belanja tinggi), sementara Bronze menumpuk di kuadran kiri bawah. Segmentasi ini menjadi fondasi untuk merancang program loyalitas yang tepat sasaran: tidak semua pelanggan perlu diperlakukan sama, dan investasi terbesar sebaiknya diarahkan ke segmen yang memberikan nilai tertinggi.
+
+```{r segmentasi}
+cust_seg <- dbGetQuery(con, "
+  SELECT
+    customer_id,
+    COUNT(rental_id)       AS frekuensi,
+    ROUND(SUM(amount), 2)  AS total_belanja,
+    ROUND(AVG(amount), 2)  AS avg_belanja
+  FROM rental_payment
+  GROUP BY customer_id
+") |>
+  mutate(
+    segmen = case_when(
+      total_belanja >= quantile(total_belanja, 0.75) ~ "Platinum (Top 25%)",
+      total_belanja >= quantile(total_belanja, 0.50) ~ "Gold (50–75%)",
+      total_belanja >= quantile(total_belanja, 0.25) ~ "Silver (25–50%)",
+      TRUE                                           ~ "Bronze (Bawah 25%)"
+    ),
+    segmen = factor(segmen,
+                    levels = c("Platinum (Top 25%)","Gold (50–75%)",
+                               "Silver (25–50%)","Bronze (Bawah 25%)"))
+  )
+
+seg_summary <- cust_seg |>
+  group_by(segmen) |>
+  summarise(
+    jumlah_pelanggan = n(),
+    total_pendapatan = sum(total_belanja),
+    avg_belanja      = round(mean(total_belanja), 2),
+    .groups          = "drop"
+  ) |>
+  mutate(
+    pct_pelanggan  = round(jumlah_pelanggan / sum(jumlah_pelanggan) * 100, 1),
+    pct_pendapatan = round(total_pendapatan / sum(total_pendapatan) * 100, 1)
+  )
+
+kable(seg_summary,
+      col.names = c("Segmen","Pelanggan","Total Pendapatan (USD)",
+                    "Rata-rata Belanja","% Pelanggan","% Pendapatan"),
+      format.args = list(big.mark = ","),
+      align = c("l","r","r","r","r","r")) |>
+  kable_styling(bootstrap_options = c("striped","hover"),
+                full_width = FALSE) |>
+  row_spec(1, bold = TRUE, color = "white", background = "#c0952c")
+```
+
+```{r scatter_segmen, fig.height=5}
+ggplot(cust_seg, aes(x = frekuensi, y = total_belanja, color = segmen)) +
+  geom_point(alpha = 0.55, size = 2) +
+  scale_y_continuous(labels = dollar_format()) +
+  scale_color_manual(values = c("#c0952c","#8ab4d4","#a0a0a0","#5a5a5a")) +
+  labs(
+    title    = "Distribusi Pelanggan: Frekuensi vs Total Belanja",
+    subtitle = "Warna menunjukkan segmen nilai pelanggan",
+    x        = "Frekuensi Penyewaan",
+    y        = "Total Belanja (USD)",
+    color    = "Segmen",
+    caption  = "Sumber data : Dataset Sakila"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title    = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(color = "grey50"),
+    legend.position = "top"
+  )
+```
+
+------------------------------------------------------------------------
+
+# Kesimpulan
+
+Berdasarkan analisis yang telah dilakukan terhadap dataset Sakila, diperoleh gambaran yang cukup komprehensif mengenai struktur pendapatan bisnis penyewaan DVD ini. Secara keseluruhan, bisnis beroperasi dalam kondisi yang sehat dengan total ribuan transaksi yang terdistribusi di dua gerai toko dan melibatkan ratusan pelanggan aktif. Namun di baik angka agregat tersebut, terdapat sejumlah pola dan disparitas yang penting untuk dipahami secara lebih mendalam.
+
+Pertama, dari sisi kategori film, distribusi pendapatan antar genre terbilang relatif merata, tidak ada satu kategori pun yang mendominasi secara lebih mutlak lebih dari sepuluh persen total pendapatan. Meskipun demikian, terdapat tiga hingga lima kategori teratas yang secara konsisten mencatatkan pendapatan di atas rata-rata, didorong oleh kombinasi antara tingginya volume penyewaan dan tarif sewayang kompetitif. Kategori-kategori ini menjadi tulang punggung pendapatan yang perlu dijaga ketersediaan dan kualitas stoknya.
+
+Kedua, dari sisi perbandingan toko, Toko 1 secara konsisten mencatatkan kinerja yang lebih tinggi dibandingkan Toko 2, baik dari siis volume transaksi maupun total pendapatan. Selisih ini tidak bersumber dari perbedaan tarif sewa, melainkan dari perbedaan jumlah pelanggan yang terlayani. Hal ini mengindikasikan adanya potensi yang belum sepenuhnya dioptimalkan di Toko 2, yang bisa jadi disebabkan oleh faktor lokasi, jangkauan pemasaran, atau komposisi stok yang kurang sesuai dengan preferensi pelanggan setempat.
+
+Ketiga, analisis tren bulanan mengungkap adanya pola musiman yang berulang dan daapt diprediksi. Pendapatan mencapai puncaknya pada bulan Juli dan Agustus setiap tahunnya, kemudian mengalami penurunan bertahap menjelang akhir tahun. Pola ini konsisten terjadi di kedua toko, yang menegaskan bahwa lonjakan tersebut dipengaruhi oleh faktor eksternal, seperti musim liburan atau peningkatan waktu luang, bukan oleh kebijakan internal toko semata. Pemahaman terhadap siklus musiman ini membuka peluang besar untuk perencanaan bisnis yang lebih proaktif.
+
+Keempat, segmentasi pelanggan berdasarkan nilai transaksi memperlihatkan pola yang selaras dengan prinsip Pareto: segmen Platinum yang hanya mencakup 25% dari total pelanggan berkontribusi terhadap proporsi pendapatan yang jauh melebihi porsi jumlahmereka. Pelanggan dalam segmen ini bukan sekedar pembeli yang sering bertransaksi, tetapi juga cenderung menyewa film dengan tarif lebih tinggi dan dalam jumlah lebih banyak per kunjungan. Sebaliknya, segmen Bronze, meskipun jumlahnya paling besar, hanya memberikan kontribusi pendapatan yang relatif kecil, sehingga perlu pendekatan yang berbeda dalam strategi penjangkauannya.
+
+## Ringkasan
+
+```{r ringkasan, echo=FALSE}
+top_cat  <- rev_cat$kategori[1]
+top_pct  <- rev_cat$pct_pendapatan[1]
+top_store <- rev_store$toko[1]
+top_store_pct <- rev_store$pct_pendapatan[1]
+platinum_pct_rev <- seg_summary$pct_pendapatan[seg_summary$segmen == "Platinum (Top 25%)"]
+```
+
+| No  | Temuan                | Detail                                                                                |
+|----------------|----------------------------|----------------------------|
+| 1   | **Kategori terlaris** | *`r top_cat`* menyumbang `r top_pct`% total pendapatan                                |
+| 2   | **Toko dominan**      | *`r top_store`* menghasilkan `r top_store_pct`% total omzet                           |
+| 3   | **Pola musiman**      | Pendapatan memuncak pada bulan Juli–Agustus setiap tahunnya                           |
+| 4   | **Pelanggan premium** | Segmen Platinum (25% pelanggan teratas) menyumbang \~`r platinum_pct_rev`% pendapatan |
+
+## Rekomendasi Strategis
+
+**1. Perkuat dan prioritaskan stok pada kategori film unggulan**
+
+Manajemen perlu memastikan bahwa kategori-kategori dengan pendapatan tertinggi selalu memiliki ketersediaan judul yang memadai, terutama menjelang periode puncak musiman di bulan Juni hingga Agustus. Penambahan judul baru dalam kategori tersebut, baik melalui pembelian maupun kerja sama distribusi, sebaiknya dijadwalkan setidaknya empat hingga enam minggu sebelum musim puncak tiba, agar stok sudah siap saat permintaan mulai meningkat. Di samping itu, analisis perlu dilakukan secara berkala untuk memantau apakah preferensi genre pelanggan mengalami pergeseran dari waktu ke waktu.
+
+**2. Rancang program loyalitas yang ditargetkan khusus untuk segmen Platinum**
+
+Mengingat kontribusi pendapatan mereka yang tidak proporsional, kehilangan satu pelanggan Platinum jauh lebih berdampak dibandingkan kehilangan beberapa pelanggan Bronze. Program yang dapat dipertimbangkan meliputi kartu keanggotaan premium dengan diskon eksklusif, akses prioritas ke judul baru sebelum tersedia untuk umum, atau penawaran bundling penyewaan dengan harga spesial. Pada saat yang sama, perlu dirancang program onboarding yang mendorong pelanggan Silver dan Gold untuk meningkatkan frekuensi transaksi mereka agar naik ke segmen yang lebih tinggi.
+
+**3. Lakukan audit menyeluruh terhadap Toko 2 untuk mengidentifikasi akar penyebab gap kinerja**
+
+Langkah awal yang direkomendasikan adalah membandingkan komposisi stok antar toko, apakah Toko 2 memiliki porsi yang cukup dari kategori-kategori unggulan. Selanjutnya, perlu ditelaah apakah perbedaan kinerja berkaitan dengan demografi pelanggan di sekitar masing-masing toko, sehingga strategi pengadaan stok dapat disesuaikan dengan preferensi lokal. Praktik terbaik dari Toko 1, baik dari sisi pengelolaan stok, pelayanan pelanggan, maupun aktivitas promosi — perlu didokumentasikan dan direplikasi secara sistematis di Toko 2.
+
+**4. Manfaatkan pola musiman sebagai kerangka perencanaan tahunan**
+
+Dengan pola yang cukup konsisten dan dapat diprediksi, manajemen memiliki keuntungan besar untuk merencanakan kampanye promosi jauh-jauh hari sebelum puncak musim tiba. Strategi yang dapat diterapkan antara lain adalah promosi early-bird dengan diskon terbatas untuk pelanggan yang memesan atau mendaftar di bulan Mei–Juni, bundling penyewaan paket liburan, hingga kampanye digital yang diarahkan ke segmen pelanggan yang belum aktif dalam tiga bulan terakhir. Di luar musim puncak, program promosi dengan nilai lebih tinggi perlu dirancang khusus untuk mempertahankan arus pendapatan agar tidak turun terlalu tajam.
+
+Secara keseluruhan, dataset Sakila memperlihatkan bahwa bisnis penyewaan ini memiliki fondasi yang solid dengan pola pendapatan yang dapat diprediksi. Dengan menerapkan keempat rekomendasi di atas secara terstruktur dan terukur, terdapat potensi nyata untuk meningkatkan pendapatan total, memperkecil kesenjangan kinerja antar toko, dan membangun basis pelanggan yang lebih loyal dan bernilai tinggi dalam jangka panjang.
